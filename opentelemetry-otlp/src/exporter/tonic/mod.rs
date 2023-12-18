@@ -254,12 +254,19 @@ impl TonicExporterBuilder {
         }
 
         let config = self.exporter_config;
-        let endpoint = match env::var(signal_endpoint_var)
-            .ok()
-            .or(env::var(OTEL_EXPORTER_OTLP_ENDPOINT).ok())
-        {
-            Some(val) => val,
-            None => format!("{}{signal_endpoint_path}", config.endpoint),
+        let endpoint = 'endpoint: {
+            if let Some(signal_endpoint) = env::var(signal_endpoint_var).ok() {
+                break 'endpoint signal_endpoint;
+            };
+            let other_endpoint = env::var(OTEL_EXPORTER_OTLP_ENDPOINT)
+                .ok()
+                .unwrap_or_else(|| config.endpoint.clone());
+            let sep = if other_endpoint.ends_with("/") {
+                ""
+            } else {
+                "/"
+            };
+            format!("{other_endpoint}{sep}{signal_endpoint_path}")
         };
 
         let endpoint = Channel::from_shared(endpoint).map_err(crate::Error::from)?;
